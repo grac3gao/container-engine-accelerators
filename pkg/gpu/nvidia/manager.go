@@ -31,7 +31,6 @@ import (
 	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
-
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 
 	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/gpusharing"
@@ -73,6 +72,7 @@ type GPUConfig struct {
 	GPUSharingConfig GPUSharingConfig
 	// Xid error codes that will set the node to unhealthy
 	HealthCriticalXid []int
+	NodePoolName      string
 }
 
 type GPUSharingConfig struct {
@@ -151,6 +151,8 @@ func (ngm *nvidiaGPUManager) ListPhysicalDevices() map[string]pluginapi.Device {
 }
 
 func (ngm *nvidiaGPUManager) ListHealthCriticalXid() []int {
+	xidConfig := os.Getenv("XID_CONFIG")
+	fmt.Println(xidConfig)
 	return ngm.gpuConfig.HealthCriticalXid
 }
 
