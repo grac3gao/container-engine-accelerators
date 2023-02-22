@@ -30,7 +30,7 @@ type device interface{}
 type deviceStatus interface{}
 
 type metricsCollector interface {
-	collectGPUDevice(deviceName string) (*nvml.Device, error)
+	collectGPUDevice(deviceName string) (Device, error)
 	collectStatus(*nvml.Device) (status *nvml.DeviceStatus, err error)
 	collectDutyCycle(string, time.Duration) (uint, error)
 }
@@ -39,7 +39,7 @@ var gmc metricsCollector
 
 type mCollector struct{}
 
-func (t *mCollector) collectGPUDevice(deviceName string) (*nvml.Device, error) {
+func (t *mCollector) collectGPUDevice(deviceName string) (Device, error) {
 	return DeviceFromName(deviceName)
 }
 
@@ -118,14 +118,16 @@ type MetricServer struct {
 	port                 int
 	metricsEndpointPath  string
 	lastMetricsResetTime time.Time
+	deviceCount          int
 }
 
-func NewMetricServer(collectionInterval, port int, metricsEndpointPath string) *MetricServer {
+func NewMetricServer(collectionInterval, port int, metricsEndpointPath string, count int) *MetricServer {
 	return &MetricServer{
 		collectionInterval:   collectionInterval,
 		port:                 port,
 		metricsEndpointPath:  metricsEndpointPath,
 		lastMetricsResetTime: time.Now(),
+		deviceCount:          count,
 	}
 }
 
@@ -133,17 +135,16 @@ func NewMetricServer(collectionInterval, port int, metricsEndpointPath string) *
 func (m *MetricServer) Start() error {
 	glog.Infoln("Starting metrics server")
 
-	driverVersion, err := nvml.GetDriverVersion()
-	if err != nil {
-		return fmt.Errorf("failed to query nvml: %v", err)
-	}
-	glog.Infof("nvml initialized successfully. Driver version: %s", driverVersion)
+	//driverVersion, err := nvml.GetDriverVersion()
+	//if err != nil {
+	//	return fmt.Errorf("failed to query nvml: %v", err)
+	//}
+	//glog.Infof("nvml initialized successfully. Driver version: %s", driverVersion)
 
-	err = DiscoverGPUDevices()
+	err := DiscoverGPUDevices(m.deviceCount)
 	if err != nil {
 		return fmt.Errorf("failed to discover GPU devices: %v", err)
 	}
-
 	go func() {
 		http.Handle(m.metricsEndpointPath, promhttp.Handler())
 		err := http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil)
@@ -175,21 +176,22 @@ func (m *MetricServer) collectMetrics() {
 	}
 }
 
-func getGpuMetrics(device string, d *nvml.Device) (uint, uint64, error) {
-	status, err := gmc.collectStatus(d)
-	if err != nil {
-		glog.Errorf("Failed to get device status for %s: %v", device, err)
-		return 0, 0, err
-	}
-	mem := status.Memory
-	dutyCycle, err := gmc.collectDutyCycle(d.UUID, time.Second*10)
-	if err != nil {
-		return 0, 0, fmt.Errorf("Failed to get dutyCycle: %v", err)
-	}
-	return dutyCycle, *mem.Global.Used, nil
+func getGpuMetrics(device string, d Device) (uint, uint64, error) {
+	//status, err := gmc.collectStatus(d)
+	//if err != nil {
+	//	glog.Errorf("Failed to get device status for %s: %v", device, err)
+	//	return 0, 0, err
+	//}
+	//mem := status.Memory
+	//dutyCycle, err := gmc.collectDutyCycle(d.UUID, time.Second*10)
+	//if err != nil {
+	//	return 0, 0, fmt.Errorf("Failed to get dutyCycle: %v", err)
+	//}
+	//return dutyCycle, *mem.Global.Used, nil
+	return 80000, 50000, nil
 }
 
-func (m *MetricServer) updateMetrics(containerDevices map[ContainerID][]string, gpuDevices map[string]*nvml.Device) {
+func (m *MetricServer) updateMetrics(containerDevices map[ContainerID][]string, gpuDevices map[string]Device) {
 	m.resetMetricsIfNeeded()
 
 	for container, devices := range containerDevices {
@@ -220,7 +222,7 @@ func (m *MetricServer) updateMetrics(containerDevices map[ContainerID][]string, 
 		}
 
 		DutyCycleNodeGpu.WithLabelValues("nvidia", d.UUID, *d.Model).Set(float64(dutyCycle))
-		MemoryTotalNodeGpu.WithLabelValues("nvidia", d.UUID, *d.Model).Set(float64(*d.Memory) * 1024 * 1024) // memory reported in bytes
+		MemoryTotalNodeGpu.WithLabelValues("nvidia", d.UUID, *d.Model).Set(float64(10000) * 1024 * 1024)     // memory reported in bytes
 		MemoryUsedNodeGpu.WithLabelValues("nvidia", d.UUID, *d.Model).Set(float64(usedMemory) * 1024 * 1024) // memory reported in bytes
 	}
 }

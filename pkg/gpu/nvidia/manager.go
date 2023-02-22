@@ -60,7 +60,7 @@ const (
 )
 
 var (
-	resourceName = "nvidia.com/gpu"
+	resourceName = "fake/gpu"
 )
 
 // GPUConfig stores the settings used to configure the GPUs on a node.

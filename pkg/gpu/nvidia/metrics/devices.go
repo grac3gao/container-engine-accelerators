@@ -21,8 +21,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
-
 	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/gpusharing"
 	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/util"
 
@@ -38,7 +36,9 @@ var (
 
 	connectionTimeout = 10 * time.Second
 
-	gpuDevices map[string]*nvml.Device
+	gpuDevices map[string]Device
+	model      = "fake-gpu"
+	memory     = uint64(100000)
 )
 
 // ContainerID uniquely identifies a container.
@@ -46,6 +46,13 @@ type ContainerID struct {
 	namespace string
 	pod       string
 	container string
+}
+
+type Device struct {
+	UUID   string
+	Path   string
+	Model  *string
+	Memory *uint64
 }
 
 // GetDevicesForAllContainers returns a map with container as the key and the list of devices allocated to that container as the value.
@@ -101,24 +108,30 @@ func GetDevicesForAllContainers() (map[ContainerID][]string, error) {
 	return containerDevices, nil
 }
 
-func GetAllGpuDevices() map[string]*nvml.Device {
+func NewDevice(i int) Device {
+	return Device{
+		UUID:   fmt.Sprintf("device%d", i),
+		Path:   fmt.Sprintf("/dev/nvidia%d", i),
+		Model:  &model,
+		Memory: &memory,
+	}
+}
+
+func GetAllGpuDevices() map[string]Device {
 	return gpuDevices
 }
 
 // DiscoverGPUDevices discovers GPUs attached to the node, and updates `gpuDevices` map.
-func DiscoverGPUDevices() error {
-	count, err := nvml.GetDeviceCount()
-	if err != nil {
-		return fmt.Errorf("failed to get device count: %s", err)
-	}
-
-	glog.Infof("Found %d GPU devices", count)
-	gpuDevices = make(map[string]*nvml.Device)
-	for i := uint(0); i < count; i++ {
-		device, err := nvml.NewDevice(i)
-		if err != nil {
-			return fmt.Errorf("failed to read device with index %d: %v", i, err)
-		}
+func DiscoverGPUDevices(count int) error {
+	//count, err := nvml.GetDeviceCount()
+	//if err != nil {
+	//	return fmt.Errorf("failed to get device count: %s", err)
+	//}
+	//
+	//glog.Infof("Found %d GPU devices", count)
+	gpuDevices = make(map[string]Device)
+	for i := 0; i < count; i++ {
+		device := NewDevice(i)
 		deviceName, err := util.DeviceNameFromPath(device.Path)
 		if err != nil {
 			glog.Errorf("Invalid GPU device path found: %s. Skipping this device", device.Path)
@@ -131,10 +144,10 @@ func DiscoverGPUDevices() error {
 }
 
 // DeviceFromName returns the device object for a given device name.
-func DeviceFromName(deviceName string) (*nvml.Device, error) {
+func DeviceFromName(deviceName string) (Device, error) {
 	device, ok := gpuDevices[deviceName]
 	if !ok {
-		return &nvml.Device{}, fmt.Errorf("device %s not found", deviceName)
+		return Device{}, fmt.Errorf("device %s not found", deviceName)
 	}
 
 	return device, nil

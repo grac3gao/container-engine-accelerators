@@ -24,7 +24,6 @@ import (
 	gpumanager "github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia"
 	healthcheck "github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/health_check"
 	"github.com/GoogleCloudPlatform/container-engine-accelerators/pkg/gpu/nvidia/metrics"
-	"github.com/NVIDIA/gpu-monitoring-tools/bindings/go/nvml"
 	"github.com/golang/glog"
 	pluginapi "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
@@ -91,8 +90,8 @@ func main() {
 	glog.Infof("Using gpu config: %v", gpuConfig)
 	ngm := gpumanager.NewNvidiaGPUManager(devDirectory, procDirectory, mountPaths, gpuConfig)
 
-	// Retry until nvidiactl and nvidia-uvm are detected. This is required
-	// because Nvidia drivers may not be installed initially.
+	//Retry until nvidiactl and nvidia-uvm are detected. This is required
+	//because Nvidia drivers may not be installed initially.
 	for {
 		err := ngm.CheckDevicePaths()
 		if err == nil {
@@ -103,10 +102,10 @@ func main() {
 		time.Sleep(5 * time.Second)
 	}
 
-	if err := nvml.Init(); err != nil {
-		glog.Fatalf("failed to initialize nvml: %v", err)
-	}
-	defer nvml.Shutdown()
+	//if err := nvml.Init(); err != nil {
+	//	glog.Fatalf("failed to initialize nvml: %v", err)
+	//}
+	//defer nvml.Shutdown()
 
 	for {
 		err := ngm.Start()
@@ -120,7 +119,7 @@ func main() {
 
 	if *enableContainerGPUMetrics {
 		glog.Infof("Starting metrics server on port: %d, endpoint path: %s, collection frequency: %d", *gpuMetricsPort, "/metrics", *gpuMetricsCollectionIntervalMs)
-		metricServer := metrics.NewMetricServer(*gpuMetricsCollectionIntervalMs, *gpuMetricsPort, "/metrics")
+		metricServer := metrics.NewMetricServer(*gpuMetricsCollectionIntervalMs, *gpuMetricsPort, "/metrics", len(ngm.ListDevices()))
 		err := metricServer.Start()
 		if err != nil {
 			glog.Infof("Failed to start metric server: %v", err)

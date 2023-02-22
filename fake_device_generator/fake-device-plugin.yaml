@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    k8s-app: nvidia-gpu-device-plugin
+  name: nvidia-gpu-device-plugin-test
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: nvidia-gpu-device-plugin
+  template:
+    metadata:
+      labels:
+        k8s-app: nvidia-gpu-device-plugin
+    spec:
+      initContainers:
+        - image: "gcr.io/gracegao-gke-dev/fake-device-generator@sha256:90368bea814e62aa7f5d2cae0870885174476c2733c6ff754f906ef084e7a977"
+          name: fake-device-generator
+          command:
+            - /usr/bin/device_generator
+            - --device-count=6
+          resources:
+            requests:
+              cpu: "0.15"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
+      containers:
+        - command:
+            - /usr/bin/nvidia-gpu-device-plugin
+            - -logtostderr
+            - --enable-container-gpu-metrics
+          env:
+            - name: LD_LIBRARY_PATH
+              value: /usr/local/nvidia/lib64
+          image: gcr.io/gracegao-gke-dev/fake-device-plugin@sha256:00ab29f24e91e25ed16a7fca6e4e74dfa9ccfc84fab824c645606bc529622faf
+          name: nvidia-gpu-device-plugin
+          ports:
+            - containerPort: 2112
+              name: metrics
+          resources:
+            limits:
+              memory: 50Mi
+            requests:
+              cpu: 50m
+              memory: 50Mi
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - mountPath: /device-plugin
+              name: device-plugin
+            - mountPath: /dev
+              name: dev
+            - mountPath: /usr/local/nvidia
+              name: nvidia
+            - mountPath: /var/lib/kubelet/pod-resources
+              name: pod-resources
+            - mountPath: /proc
+              name: proc
+            - mountPath: /etc/nvidia
+              name: nvidia-config
+            - mountPath: /tmp/nvidia-mps
+              name: mps
+      priorityClassName: system-node-critical
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+      volumes:
+        - hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
+          name: device-plugin
+        - hostPath:
+            path: /dev
+            type: Directory
+          name: dev
+        - hostPath:
+            path: /home/kubernetes/bin/nvidia
+            type: DirectoryOrCreate
+          name: nvidia
+        - hostPath:
+            path: /var/lib/kubelet/pod-resources
+            type: Directory
+          name: pod-resources
+        - hostPath:
+            path: /proc
+            type: Directory
+          name: proc
+        - hostPath:
+            path: /etc/nvidia
+            type: DirectoryOrCreate
+          name: nvidia-config
+        - hostPath:
+            path: /tmp/nvidia-mps
+          name: mps
+  updateStrategy:
+    type: RollingUpdate
