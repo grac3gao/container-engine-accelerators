@@ -1,0 +1,79 @@
+apiVersion: networking.gke.io/v1
+kind: Network
+metadata:
+  name: tcpx-eu-net-1
+spec:
+  type: "Device"
+  parametersRef:
+    group: networking.gke.io
+    kind: GKENetworkParamSet
+    name: "tcpx-eu-net-1"
+---
+apiVersion: networking.gke.io/v1
+kind: GKENetworkParamSet
+metadata:
+  name: tcpx-eu-net-1
+spec:
+  vpc: "tcpx-eu-net-1"
+  vpcSubnet: "tcpx-eu-sub-1"
+  deviceMode: "NetDevice"
+---
+apiVersion: networking.gke.io/v1
+kind: Network
+metadata:
+  name: tcpx-eu-net-2
+spec:
+  type: "Device"
+  parametersRef:
+    group: networking.gke.io
+    kind: GKENetworkParamSet
+    name: "tcpx-eu-net-2"
+---
+apiVersion: networking.gke.io/v1
+kind: GKENetworkParamSet
+metadata:
+  name: tcpx-eu-net-2
+spec:
+  vpc: "tcpx-eu-net-2"
+  vpcSubnet: "tcpx-eu-sub-2"
+  deviceMode: "NetDevice"
+---
+apiVersion: networking.gke.io/v1
+kind: Network
+metadata:
+  name: tcpx-eu-net-3
+spec:
+  type: "Device"
+  parametersRef:
+    group: networking.gke.io
+    kind: GKENetworkParamSet
+    name: "tcpx-eu-net-3"
+---
+apiVersion: networking.gke.io/v1
+kind: GKENetworkParamSet
+metadata:
+  name: tcpx-eu-net-3
+spec:
+  vpc: "tcpx-eu-net-3"
+  vpcSubnet: "tcpx-eu-sub-3"
+  deviceMode: "NetDevice"
+---
+apiVersion: networking.gke.io/v1
+kind: Network
+metadata:
+  name: tcpx-eu-net-4
+spec:
+  type: "Device"
+  parametersRef:
+    group: networking.gke.io
+    kind: GKENetworkParamSet
+    name: "tcpx-eu-net-4"
+---
+apiVersion: networking.gke.io/v1
+kind: GKENetworkParamSet
+metadata:
+  name: tcpx-eu-net-4
+spec:
+  vpc: "tcpx-eu-net-4"
+  vpcSubnet: "tcpx-eu-sub-4"
+  deviceMode: "NetDevice"

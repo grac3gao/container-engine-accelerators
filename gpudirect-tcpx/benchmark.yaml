@@ -1,27 +1,18 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name:  nccl-host-1
+  name: tcpd-bench
 spec:
   selector:
-    name:  nccl-host-1
-  clusterIP: None
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nccl-host-2
-spec:
-  selector:
-    name: nccl-host-2
+    name: tcpd
   clusterIP: None
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nccl-test-host-1
+  name: tcpd-bench-server
   labels:
-    name: nccl-host-1
+    name: tcpd
   annotations:
     networking.gke.io/default-interface: 'eth0'
     networking.gke.io/interfaces: |
@@ -33,13 +24,20 @@ metadata:
         {"interfaceName":"eth4","network":"tcpx-eu-net-4"}
       ]
 spec:
-#  hostname: host1
-#  subdomain: nccl-host-1
+  hostname: server
+  subdomain: tcpd-bench
 #  hostNetwork: true
 #  dnsPolicy: ClusterFirstWithHostNet
   containers:
-    - name: tcpx-daemon
-      image: us-docker.pkg.dev/gce-ai-infra/gpudirect-tcpx/tcpgpudmarxd:v1.1.5
+    # This container is here to debug DNS resolution
+    #- name: debug
+    #  image: tianon/network-toolbox
+    #  command:
+    #  - /bin/sh
+    #  - -c
+    #  - for i in $(seq 1 10); do echo "Iteration $i"; dig +short server.tcpd-bench.default.svc.cluster.local; sleep 1; done; sleep inf
+    - name: tcpd-daemon
+      image: us-docker.pkg.dev/gce-ai-infra/gpudirect-tcpx/tcpgpudmarxd:latest
       imagePullPolicy: Always
       command:
         - /tcpgpudmarxd/build/app/tcpgpudmarxd
@@ -47,37 +45,39 @@ spec:
         - a3vm
         - --gpu_shmem_type
         - fd
-        - --uds_path
-        - /run/tcpx
       securityContext:
         privileged: true
       volumeMounts:
         - name: nvidia
           mountPath: /usr/local/nvidia/lib64
-        - name: tcpx-socket
-          mountPath: /run/tcpx
+        - name: tcpd-socket
+          mountPath: /tmp
       env:
         - name: LD_LIBRARY_PATH
           value: /usr/local/nvidia/lib64
-    - name: nccl-test
-      image: us-docker.pkg.dev/gce-ai-infra/gpudirect-tcpx/nccl-plugin-gpudirecttcpx:latest
+        - name: IS_SERVER
+          value: 'yes'
+        - name: SERVER
+          value: server.tcpd-bench.default.svc.cluster.local
+        - name: CLIENT
+          value: client.tcpd-bench.default.svc.cluster.local
+    - name: server
+      image: us-docker.pkg.dev/a3-tcpd-staging-hostpool/stable/sock-devmem-comm:latest
       imagePullPolicy: Always
       command:
         - /bin/sh
         - -c
-        - "while true; do echo hello; sleep 1; done"
-      env:
-        - name: LD_LIBRARY_PATH
-          value: /usr/local/nvidia/lib64
+        - sleep 10; /sock-devmem-comm/build/multinic_bench --gpus 0,1,2,3,4,5,6,7 --ifnames eth1,eth1,eth2,eth2,eth3,eth3,eth4,eth4 --use_dmabuf --port 5201 --num_gpus=8 --message_size 819200 --server_address "${SERVER}" --socket_per_thread 1 --threads_per_gpu 16 --skip_rx_copy --server
       securityContext:
         capabilities:
           add:
             - IPC_LOCK
       volumeMounts:
-        - name: tcpx-socket
+        - name: tcpd-socket
           mountPath: /tmp
-        - name: nvidia
-          mountPath: /usr/local/nvidia/lib64
+      env:
+        - name: SERVER
+          value: server.tcpd-bench.default.svc.cluster.local
       resources:
         limits:
           nvidia.com/gpu: 8
@@ -85,16 +85,15 @@ spec:
     - name: nvidia
       hostPath:
         path: /home/kubernetes/bin/nvidia/lib64
-    - name: tcpx-socket
-      hostPath:
-        path: /run/tcpx
+    - name: tcpd-socket
+      emptyDir:
 ---
 apiVersion: v1
 kind: Pod
 metadata:
-  name: nccl-test-host-2
+  name: tcpd-bench-client
   labels:
-    name: nccl-host-2
+    name: tcpd
   annotations:
     networking.gke.io/default-interface: 'eth0'
     networking.gke.io/interfaces: |
@@ -106,13 +105,13 @@ metadata:
         {"interfaceName":"eth4","network":"tcpx-eu-net-4"}
       ]
 spec:
-#  hostname: host2
-#  subdomain: nccl-host-2
+  hostname: client
+  subdomain: tcpd-bench
 #  hostNetwork: true
 #  dnsPolicy: ClusterFirstWithHostNet
   containers:
-    - name: tcpx-daemon
-      image: us-docker.pkg.dev/gce-ai-infra/gpudirect-tcpx/tcpgpudmarxd:v1.1.5
+    - name: tcpd-daemon
+      image: us-docker.pkg.dev/gce-ai-infra/gpudirect-tcpx/tcpgpudmarxd:latest
       imagePullPolicy: Always
       command:
         - /tcpgpudmarxd/build/app/tcpgpudmarxd
@@ -120,37 +119,38 @@ spec:
         - a3vm
         - --gpu_shmem_type
         - fd
-        - --uds_path
-        - /run/tcpx
       securityContext:
         privileged: true
+        runAsUser: 0
       volumeMounts:
         - name: nvidia
           mountPath: /usr/local/nvidia/lib64
-        - name: tcpx-socket
-          mountPath: /run/tcpx
+        - name: tcpd-socket
+          mountPath: /tmp
       env:
         - name: LD_LIBRARY_PATH
           value: /usr/local/nvidia/lib64
-    - name: nccl-test
-      image: us-docker.pkg.dev/gce-ai-infra/gpudirect-tcpx/nccl-plugin-gpudirecttcpx:latest
+        - name: SERVER
+          value: server.tcpd-bench.default.svc.cluster.local
+        - name: CLIENT
+          value: client.tcpd-bench.default.svc.cluster.local
+    - name: client
+      image: us-docker.pkg.dev/a3-tcpd-staging-hostpool/stable/sock-devmem-comm:latest
       imagePullPolicy: Always
       command:
         - /bin/sh
         - -c
-        - "while true; do echo hello; sleep 1; done"
-      env:
-        - name: LD_LIBRARY_PATH
-          value: /usr/local/nvidia/lib64
+        - sleep 15; /sock-devmem-comm/build/multinic_bench -gpus 0,1,2,3,4,5,6,7 --ifnames eth1,eth1,eth2,eth2,eth3,eth3,eth4,eth4 --use_dmabuf --port 5201 --num_gpus=8 --message_size 819200 --server_address "${SERVER}" --socket_per_thread 1 --threads_per_gpu 16 --skip_rx_copy
       securityContext:
         capabilities:
           add:
             - IPC_LOCK
       volumeMounts:
-        - name: tcpx-socket
+        - name: tcpd-socket
           mountPath: /tmp
-        - name: nvidia
-          mountPath: /usr/local/nvidia/lib64
+      env:
+        - name: SERVER
+          value: server.tcpd-bench.default.svc.cluster.local
       resources:
         limits:
           nvidia.com/gpu: 8
@@ -158,6 +158,5 @@ spec:
     - name: nvidia
       hostPath:
         path: /home/kubernetes/bin/nvidia/lib64
-    - name: tcpx-socket
-      hostPath:
-        path: /run/tcpx
+    - name: tcpd-socket
+      emptyDir:
